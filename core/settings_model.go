@@ -128,6 +128,7 @@ type settings struct {
 	TrustedProxy TrustedProxyConfig `form:"trustedProxy" json:"trustedProxy"`
 	Batch        BatchConfig        `form:"batch" json:"batch"`
 	Logs         LogsConfig         `form:"logs" json:"logs"`
+	Sync         SyncConfig         `form:"sync" json:"sync"`
 }
 
 // Settings defines the PocketBase app settings.
@@ -177,6 +178,12 @@ func newDefaultSettings() *Settings {
 					{Label: "/api/batch", MaxRequests: 3, Duration: 1},
 					{Label: "/api/", MaxRequests: 300, Duration: 10},
 				},
+			},
+			Sync: SyncConfig{
+				Enabled:          false,
+				NatsURL:          "0.0.0.0:4222",
+				InstanceID:       "",
+				SnapshotInterval: 24,
 			},
 		},
 	}
@@ -287,6 +294,7 @@ func (s *Settings) PostValidate(ctx context.Context, app App) error {
 		validation.Field(&s.Batch),
 		validation.Field(&s.RateLimits),
 		validation.Field(&s.TrustedProxy),
+		validation.Field(&s.Sync),
 	)
 }
 
@@ -713,4 +721,32 @@ func (c RateLimitRule) String() string {
 	}
 
 	return string(raw)
+}
+
+// -------------------------------------------------------------------
+
+type SyncConfig struct {
+	Enabled          bool   `form:"enabled" json:"enabled"`
+	NatsURL          string `form:"natsURL" json:"natsURL"`
+	InstanceID       string `form:"instanceID" json:"instanceID"`
+	SnapshotInterval int64  `form:"snapshotInterval" json:"snapshotInterval"` // Interval in hours
+}
+
+// Validate makes SyncConfig validatable by implementing [validation.Validatable] interface.
+func (c SyncConfig) Validate() error {
+	return validation.ValidateStruct(&c,
+		validation.Field(
+			&c.NatsURL,
+			validation.When(c.Enabled, validation.Required),
+		),
+		validation.Field(
+			&c.InstanceID,
+			validation.When(c.Enabled, validation.Required),
+		),
+		validation.Field(
+			&c.SnapshotInterval,
+			validation.When(c.Enabled, validation.Required),
+			validation.Min(1),
+		),
+	)
 }
